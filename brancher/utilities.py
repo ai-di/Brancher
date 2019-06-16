@@ -70,7 +70,7 @@ def zip_dict(first_dict, second_dict):
 
 
 def zip_dict_list(dict_list):
-    if len(dict_list) == 0:
+    if not dict_list:
         return {}
     if len(dict_list) == 1:
         return dict_list[0]

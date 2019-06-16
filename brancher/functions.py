@@ -41,7 +41,7 @@ class BrancherFunction(object):
                            self.links, string=self._get_string(*args, **kwargs))
 
     @staticmethod
-    def _is_var(self, arg):
+    def _is_var(arg):
         return isinstance(arg, (Variable, PartialLink))
 
 # function set as a combination of torch.nn.functional and torch._C._VariableFunctions

@@ -965,13 +965,13 @@ class Ensemble(BrancherClass):
         return sample
 
     def _get_statistic(self, query, input_values):
-        raise NotImplemented
+        raise NotImplementedError
 
     def _get_mean(self, input_values):
-        raise NotImplemented
+        raise NotImplementedError
 
     def _get_variance(self, input_values):
-        raise NotImplemented
+        raise NotImplementedError
 
 
 class PartialLink(BrancherClass):
@@ -1064,10 +1064,10 @@ class PartialLink(BrancherClass):
         return flatten_list([var._flatten() for var in self.vars]) + [self]
 
     def _get_statistic(self, query, input_values):
-        raise NotImplemented
+        raise NotImplementedError
 
     def _get_mean(self, input_values):
-        raise NotImplemented
+        raise NotImplementedError
 
     def _get_variance(self, input_values):
-        raise NotImplemented
+        raise NotImplementedError

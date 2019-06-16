@@ -172,7 +172,7 @@ class WassersteinVariationalGradientDescent(InferenceMethod):
         if deviation_statistics:
             self.deviation_statistics = deviation_statistics
         else:
-            self.deviation_statistics = lambda lst: sum(lst)
+            self.deviation_statistics = sum
 
         def model_statistics(dic):
             num_samples = list(dic.values())[0].shape[0]
@@ -325,5 +325,3 @@ class SteinVariationalGradientDescent(InferenceMethod): #TODO: work in progress
 
     def post_process(self, joint_model):
         pass
-
-

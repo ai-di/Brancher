@@ -8,7 +8,6 @@ from brancher import inference
 import brancher.functions as BF
 
 from brancher.particle_inference_tools import VoronoiSet
-from brancher import inference
 from brancher.inference import WassersteinVariationalGradientDescent as WVGD
 
 # Data

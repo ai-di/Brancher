@@ -230,7 +230,7 @@ class ImplicitDistribution(Distribution):
         return log_pro
 
     def _get_statistic(self, query, **parameters):
-        raise NotImplemented
+        raise NotImplementedError
 
 
 class VectorDistribution(Distribution):
@@ -590,6 +590,3 @@ class BernulliDistribution(UnivariateDistribution, DiscreteDistribution):
         self.has_analytic_entropy = True
         self.has_analytic_mean = True
         self.has_analytic_var = True
-
-
-
