@@ -604,9 +604,6 @@ class RandomVariable(Variable):
         self.has_random_dataset = False
         self.has_observed_value = False
 
-    def __getnewargs_ex__(self):
-        return (tuple(), {**self.link.kwargs, "name": self.name})
-
     @property
     def value(self):
         """

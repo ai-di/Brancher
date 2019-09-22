@@ -101,6 +101,9 @@ class StandardVariable(RandomVariable):
         self.is_normalized = True
         self.partial_links = {name: var2link(link) for name, link in kwargs.items()}
 
+    def __getnewargs_ex__(self):
+        return (tuple(), {**self.link.kwargs, "name": self.name, "is_observed": self._observed})
+
     def construct_deterministic_parents(self, learnable, ranges, kwargs):
         """
         Method. Constructs the deterministic variables for input variables that are numberic or numpy arrays. If a
