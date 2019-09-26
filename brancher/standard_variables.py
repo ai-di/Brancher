@@ -79,8 +79,10 @@ class StandardVariable(RandomVariable):
 
 
     def __init__(self, name, learnable, ranges, is_observed=False, has_bias=False, **kwargs):
-        self._input = kwargs
+        self._input = kwargs.copy()
         self.name = name
+        self.learnable = learnable
+        self._bias = has_bias
         self._evaluated = False
         self._observed = is_observed
         self._observed_value = None
@@ -102,7 +104,28 @@ class StandardVariable(RandomVariable):
         self.partial_links = {name: var2link(link) for name, link in kwargs.items()}
 
     def __getnewargs_ex__(self):
-        return (tuple(), {**self.link.kwargs, "name": self.name, "is_observed": self._observed})
+        return (tuple(), {**self._input,
+                          "name": self.name,
+                          "learnable": self.learnable,
+                          "has_bias": self._bias,
+                          "is_observed": self._observed})
+
+    def replicate(self, name=None, learnable=None, has_bias=None, is_observed=None):
+        if name is None:
+            name = self.name
+        if learnable is None:
+            learnable = self.learnable
+        if has_bias is None:
+            has_bias = self._bias
+        if is_observed is None:
+            is_observed = self._observed
+
+        return self.__new__(self.__class__,
+                            name=name,
+                            learnable=learnable,
+                            has_bias=has_bias,
+                            is_observed=is_observed,
+                            **self._input)
 
     def construct_deterministic_parents(self, learnable, ranges, kwargs):
         """
