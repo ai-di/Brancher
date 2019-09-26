@@ -338,7 +338,7 @@ class Variable(BrancherClass):
 
         Returns: brancher.PartialLink
         """
-        return var2link(self)._apply_operator(other, op)
+        return BinaryLink(self, other, op)
 
     def __neg__(self):
         return -1*self
@@ -383,16 +383,7 @@ class Variable(BrancherClass):
         Returns:
             brancher.PartialLink.
         """
-        if isinstance(key, str):
-            variable_slice = key
-        elif isinstance(key, Iterable):
-            variable_slice = (slice(None, None, None), *key)
-        else:
-            variable_slice = (slice(None, None, None), key)
-        vars = {self}
-        fn = lambda values: values[self][variable_slice]
-        links = set()
-        return PartialLink(vars=vars, fn=fn, links=links)
+        return IndexLink(self, key)
 
     def shape(self):
         """
@@ -403,10 +394,13 @@ class Variable(BrancherClass):
         Returns:
             brancher.PartialLink.
         """
-        vars = {self}
-        fn = lambda values: values[self].shape
-        links = set()
-        return PartialLink(vars=vars, fn=fn, links=links)
+        return ShapeLink(self)
+
+    def __repr__(self):
+        return "{}({})".format(self.name, self._type)
+
+    def construct_representation(self):
+        pass
 
 
 class RootVariable(Variable):
@@ -571,6 +565,10 @@ class RootVariable(Variable):
         Private method. Returns empty list of variables because root variables have no parent variables.
         """
         return []
+
+    def construct_representation(self):
+        repr = {self:{"data":var2link(self._value)}}
+        return repr
 
 
 class RandomVariable(Variable):
@@ -870,6 +868,15 @@ class RandomVariable(Variable):
         """
         variables = list(self.ancestors) + [self]
         return sorted(variables, key=lambda v: v.name)
+
+    def construct_representation(self):
+        repr = {}
+        for name, link in self.link.kwargs.items():
+            for vars in var2link(link).vars:
+                repr.update(vars.construct_representation())
+        repr[self] = self.link
+
+        return repr
 
 
 class ProbabilisticModel(BrancherClass):
@@ -1575,31 +1582,6 @@ class PosteriorModel(ProbabilisticModel):
         return sample
 
 
-def var2link(var):
-    """
-    Function. Constructs a PartialLink from variables, numbers, numpy arrays, tensors or a combination of variables and
-    PartialLinks.
-
-    Args:
-        var: brancher.Variables, numbers, numpy.ndarrays, torch.Tensors, or List/Tuple of brancher.Variables and
-        brancher.PartialLinks.
-
-    Retuns: brancher.PartialLink
-    """
-    if isinstance(var, Variable):
-        vars = {var}
-        fn = lambda values: values[var]
-    elif isinstance(var, (numbers.Number, np.ndarray, torch.Tensor)):
-        vars = set()
-        fn = lambda values: var
-    elif isinstance(var, (tuple, list)) and all([isinstance(v, (Variable, PartialLink)) for v in var]):
-        vars = join_sets_list([{v} if isinstance(v, Variable) else v.vars for v in var])
-        fn = lambda values: tuple([values[v] if isinstance(v, Variable) else v.fn(values) for v in var])
-    else:
-        return var
-    return PartialLink(vars=vars, fn=fn, links=set(), string=str(var))
-
-
 class Ensemble(BrancherClass):
     """
     Ensembles are collections of models. Each model can have a weight and models can share variables.
@@ -1708,6 +1690,27 @@ class Ensemble(BrancherClass):
         raise NotImplemented
 
 
+def var2link(var):
+    """
+    Function. Constructs a PartialLink from variables, numbers, numpy arrays, tensors or a combination of variables and
+    PartialLinks.
+
+    Args:
+        var: brancher.Variables, numbers, numpy.ndarrays, torch.Tensors, or List/Tuple of brancher.Variables and
+        brancher.PartialLinks.
+
+    Retuns: brancher.PartialLink
+    """
+    if isinstance(var, Variable):
+        return VarLink(var)
+    elif isinstance(var, (numbers.Number, np.ndarray, torch.Tensor)):
+        return DataLink(var)
+    elif isinstance(var, (tuple, list)) and all([isinstance(v, (Variable, PartialLink)) for v in var]):
+        return CollectionLink(var)
+    else:
+        return var
+
+
 class PartialLink(BrancherClass):
     """
     A PartialLink defines a symbolic operations between variables. The vars attribute of the link is the set of variables
@@ -1720,76 +1723,49 @@ class PartialLink(BrancherClass):
 
     fn: callable. A function Dictionary(brancher.Variable: torch.Tensor) -> Dictionary(str: torch.Tensor)
 
-    links: Set(brancher.PartialLink). Other partial links this links needs for its operations.
+    links: Set(torch.nn.Module). Torch modules.
 
     string: string representation of this link.
     """
-    def __init__(self, vars, fn, links, string=""):
+    def __init__(self, vars=set(), links=set()):
         self.vars = vars
-        self.fn = fn
         self.links = links
-        self.string = string
 
-    def __str__(self):
-        """
-        Method.
+    def fn(self, values):
+        pass
 
-        Args: None
-
-        Returns: String
-        """
-        return self.string
-
-    def _apply_operator(self, other, op):
-        """
-        Private method. Used internally when operators are used. This function generates a new partiallink that applies
-        a binary operator on this and another partiallink.
-
-        Args:
-            other: brancher.PartialLink.
-
-            op: operator
-
-        Returns:
-            brancher.PartialLink
-        """
-        symbols = {operator.add: "+", operator.sub: "-", operator.mul: "*", operator.truediv: "/", operator.pow: "**"}
-        get_symbol = lambda op: symbols[op] if op in symbols.keys() else "?"
-        other = var2link(other)
-        return PartialLink(vars=self.vars.union(other.vars),
-                           fn=lambda values: op(self.fn(values), other.fn(values)),
-                           links=self.links.union(other.links),
-                           string="(" + str(self) + get_symbol(op) + str(other) + ")")
+    def __repr__(self):
+        return str(self)
 
     def __neg__(self):
         return -1*self
 
     def __add__(self, other):
-        return self._apply_operator(other, operator.add)
+        return BinaryLink(self, other, operator.add)
 
     def __radd__(self, other):
         return self.__add__(other)
 
     def __sub__(self, other):
-        return self._apply_operator(other, operator.sub)
+        return BinaryLink(self, other, operator.sub)
 
     def __rsub__(self, other):
         return -1*self.__sub__(other)
 
     def __mul__(self, other):
-        return self._apply_operator(other, operator.mul)
+        return BinaryLink(self, other, operator.mul)
 
     def __rmul__(self, other):
         return self.__mul__(other)
 
     def __truediv__(self, other):
-        return self._apply_operator(other, operator.truediv)
+        return BinaryLink(self, other, operator.truediv)
 
     def __rtruediv__(self, other):
         return self.__truediv__(other)**(-1)
 
     def __pow__(self, other):
-        return self._apply_operator(other, operator.pow)
+        return BinaryLink(self, other, operator.pow)
 
     def __rpow__(self, other):
         raise NotImplementedError
@@ -1813,14 +1789,7 @@ class PartialLink(BrancherClass):
             variable_slice = key
         else:
             raise ValueError("The input to __getitem__ is neither numeric nor a hashabble key")
-
-        vars = self.vars
-        fn = lambda values: self.fn(values)[variable_slice] if is_tensor(self.fn(values)) \
-            else self.fn(values)[key]
-        links = set()
-        return PartialLink(vars=vars,
-                           fn=fn,
-                           links=self.links)
+        return IndexLink(self, variable_slice)
 
     def shape(self):
         """
@@ -1832,12 +1801,8 @@ class PartialLink(BrancherClass):
         Returns:
             brancher.PartialLink
         """
-        vars = self.vars
-        fn = lambda values: self.fn(values).shape
-        links = set()
-        return PartialLink(vars=vars,
-                           fn=fn,
-                           links=self.links)
+
+        return ShapeLink(self)
 
     def _flatten(self):
         """
@@ -1859,3 +1824,80 @@ class PartialLink(BrancherClass):
 
     def _get_variance(self, input_values):
         raise NotImplemented
+
+
+class VarLink(PartialLink):
+    def __init__(self, var):
+        self.var = var
+        super().__init__(vars={var})
+
+    def fn(self, values):
+        return values[self.var]
+
+    def __str__(self):
+        return self.var.name
+
+
+class DataLink(PartialLink):
+    def __init__(self, data):
+        self.data = data
+        super().__init__()
+
+    def fn(self, values):
+        return self.data
+
+    def __str__(self):
+        return str(self.data)
+
+
+class CollectionLink(PartialLink):
+    def __init__(self, vars):
+        super().__init__(vars=join_sets_list([{v} if isinstance(v, Variable) else v.vars for v in vars]))
+
+    def fn(self, values):
+        return tuple([values[v] if isinstance(v, Variable) else v.fn(values) for v in self.vars])
+
+    def __str__(self):
+        return str(self.vars)
+
+
+class BinaryLink(PartialLink):
+    def __init__(self, left_var, right_var, op):
+        self.left_var = var2link(left_var)
+        self.right_var = var2link(right_var)
+        self.op = op
+        super().__init__(vars=self.left_var.vars.union(self.right_var.vars),
+                         links=self.left_var.links.union(self.right_var.links))
+
+    def fn(self, values):
+        return self.op(self.left_var.fn(values), self.right_var.fn(values))
+
+    def __str__(self):
+        symbols = {operator.add: "+", operator.sub: "-", operator.mul: "*", operator.truediv: "/", operator.pow: "**"}
+        return "({}{}{})".format(str(self.left_var), symbols[self.op], str(self.right_var))
+
+
+class IndexLink(PartialLink):
+    def __init__(self, var, key):
+        self.var = var2link(var)
+        self.key = key
+        super().__init__(vars=self.var.vars, links=self.var.links)
+
+    def fn(self, values):
+        return self.var.fn(values)[self.key]
+
+    def __str__(self):
+        return "{}[{}]".format(self.var, repr(self.key))
+
+
+class ShapeLink(PartialLink):
+    def __init__(self, var):
+        self.var = var2link(var)
+        super().__init__(vars=self.var.vars)
+
+    def fn(self, values):
+        return self.var.fn(values).shape
+
+    def __str__(self):
+        return "{}.shape".format(self.var)
+

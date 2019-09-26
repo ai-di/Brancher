@@ -23,28 +23,36 @@ class BrancherFunction(object):
         else:
             self.links = set()
 
-    def _get_string(self, *args, **kwargs):
-        return self.name + "(" + ", ".join([var2link(a).__str__()
-                                            for n, a in enumerate(list(args) + list(kwargs.values()))]) + ")"
+    def __str__(self):
+        return self.name
 
     def __call__(self, *args, **kwargs):
-        link_args = [var2link(arg) for arg in args]
-        link_kwargs = {name: var2link(arg) for name, arg in kwargs.items()}
-        arg_vars = {var for link in link_args if isinstance(link, PartialLink) for var in link.vars}
-        kwarg_vars = {var for _, link in link_kwargs.items() if isinstance(link, PartialLink) for var in link.vars}
-
-        def fn(values):
-            args = [x.fn(values) if isinstance(x, PartialLink) else x for x in link_args]
-            kwargs = dict({(name, x.fn(values)) if isinstance(x, PartialLink) else (name, x)
-                           for name, x in link_kwargs.items()})
-            return self.fn(*args, **kwargs)
-
-        return PartialLink(arg_vars.union(kwarg_vars), fn,
-                           self.links, string=self._get_string(*args, **kwargs))
+        return FunctionLink(self, self.links, *args, **kwargs)
 
     @staticmethod
     def _is_var(self, arg):
         return isinstance(arg, (Variable, PartialLink))
+
+
+class FunctionLink(PartialLink):
+    def __init__(self, function, links, *args, **kwargs):
+        self.function = function
+        self.link_args = [var2link(arg) for arg in args]
+        self.link_kwargs = {name: var2link(arg) for name, arg in kwargs.items()}
+        arg_vars = {var for link in self.link_args if isinstance(link, PartialLink) for var in link.vars}
+        kwarg_vars = {var for _, link in self.link_kwargs.items() if isinstance(link, PartialLink) for var in link.vars}
+        super().__init__(vars=arg_vars.union(kwarg_vars),
+                         links=links)
+
+    def fn(self, values):
+        args = [x.fn(values) if isinstance(x, PartialLink) else x for x in self.link_args]
+        kwargs = dict({(name, x.fn(values)) if isinstance(x, PartialLink) else (name, x)
+                       for name, x in self.link_kwargs.items()})
+        return self.function.fn(*args, **kwargs)
+
+    def __str__(self):
+        return str(self.function) + "(" + ", ".join([str(var2link(a))
+                                    for n, a in enumerate(list(self.link_args) + list(self.link_kwargs.values()))]) + ")"
 
 # function set as a combination of torch.nn.functional and torch._C._VariableFunctions
 # comprises most operations on tensors, including math, reshashing, broadcasting and nn functions
